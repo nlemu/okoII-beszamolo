@@ -1,0 +1,1569 @@
+---
+title: "kód_ökoII"
+author: "Novák Levente"
+date: "2024-05-27"
+output: html_document
+---
+
+
+```{r}
+setwd("C:/Users/Levente/OneDrive - Corvinus University of Budapest/Dokumentumok/Corvinus/Rajk/Oko2/Beszamolo/adatok0506")
+
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(ggplot2)
+  library(labelled)
+  library(corrplot)
+  library(lmtest)
+  library(psych)
+  library(stargazer)
+  library(png)
+  library(grid)
+  library(stats)
+  library(haven)
+  library(car)
+  library(mosaic)
+  library(lmtest)
+  library(pROC)
+  library(readxl)
+  library(openxlsx)
+  library(fredr)
+  library(lubridate)
+  library(tidyr)
+  library(vcd)
+  library(Synth)
+  library(haven)
+  library(ggtext)
+})
+```
+
+
+
+
+
+```{r}
+identitás  %>% - read_excel("identitás.xlsx")
+
+identitás$color <- ifelse(identitás$ország == "Magyarország", "#FF6961", "#89CFF0")
+
+ggplot(identitás, aes(x = reorder(ország, -identitás), y = identitás, fill = color)) +
+  geom_bar(stat = "identity", width = 0.8) +
+  scale_fill_identity() + 
+  theme_minimal() +
+  labs(title = "Országonként azok aránya, akik 'hajlamosak azonosítani' vagy 'erősen azonosítják' magukat a nemzetükkel",
+       x = "Forrás: Eurobarometer, 2021; saját szerkesztés",
+       y = "%") +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1),
+        plot.title = element_text(size = 10))
+
+ggsave("ident.png")
+
+```
+
+
+```{r}
+liverpoolcovid <- read_excel("liverpoolcovid19.xlsx")
+
+liverpoolcovid$Dátum <- as.Date(liverpoolcovid$Dátum)
+liverpoolcovid$liverpool <- as.numeric(liverpoolcovid$liverpool)
+liverpoolcovid$covid <- as.numeric(liverpoolcovid$covid)
+
+# A legmagasabb értékek megtalálása
+max_liverpool <- liverpoolcovid %>%
+  filter(liverpool == max(liverpool, na.rm = TRUE))
+
+max_covid <- liverpoolcovid %>%
+  filter(covid == max(covid, na.rm = TRUE))
+
+ggplot(liverpoolcovid, aes(x = Dátum)) +
+  geom_line(aes(y = liverpool, color = "Liverpool"), size = 1) +
+  geom_line(aes(y = covid, color = "Covid-19"), size = 1) +
+  labs(
+    title = "A Liverpool FC és Covid-19 témakörökre keresések egymáshoz viszonyított aránya Magyarországon\n (2019. május - 2024. május)",
+    y = "Keresési arány",
+    color = "Témakörök") +
+  theme(plot.title = element_text(size = 10)) +
+  scale_color_manual(values = c("Liverpool" = "red", "Covid-19" = "blue")) +
+  geom_text(data = max_liverpool, aes(x = Dátum, y = liverpool, label = round(liverpool, 1)), vjust = -1) +
+  geom_text(data = max_covid, aes(x = Dátum, y = covid, label = round(covid, 1)), vjust = -1) +
+  ylim(0, 115) 
+
+# innen van letöltve:
+# https://trends.google.com/trends/explore?date=today%205-y&geo=HU&q=%2Fm%2F04ltf,%2Fg%2F11j2cc_qll&hl=hu
+
+```
+
+
+```{r}
+adat0 <- read_excel("helyes.xlsx")
+adat0$date <- as.Date(adat0$date)
+
+adat2 <- read_excel("helyes2.xlsx")
+adat2$date <- as.Date(adat2$date)
+
+data <- merge(adat0, adat2, by = "date")
+
+rm(adat0)
+rm(adat2)
+
+data <- data %>% 
+  select(-Magyarorszag2)
+```
+
+### rajzoljunk ábrát
+
+```{r}
+
+ggplot(data = filter(data, date >= as.Date("2014-05-01")), aes(x = date)) +
+  geom_line(aes(y = Magyarorszag, color = "red"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", size = 0.5, linetype = "dashed") +
+  labs(
+    title = "Liverpool FC témakörben történt keresések alakulása Magyarországon \n(2014 május - 2024 április) \nTöréspont: Szoboszlai Liverpoolba igazolása (2023. július 2.)",
+    y = "Keresések",
+    x = "Dátum")
+
+```
+
+
+```{r}
+
+ggplot(data = filter(data, date >= as.Date("2014-05-01")), aes(x = date)) +
+  geom_line(aes(y = Magyarorszag, color = "Magyarorszag"), size = 1) +
+  geom_line(aes(y = Szlovakia, color = "Szlovakia"), size = 1) +
+  geom_line(aes(y = Ausztria, color = "Ausztria")) +
+  geom_line(aes(y = Romania, color = "Romania")) +
+  geom_line(aes(y = Horvatorszag, color = "Horvatorszag")) +
+  geom_line(aes(y = Csehorszag, color = "Csehorszag")) +
+  geom_line(aes(y = Szlovenia, color = "Szlovenia")) +
+  geom_line(aes(y = Lengyelorszag, color = "Lengyelorszag")) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "red", linetype = "dashed") +
+  labs(title = "Magyarorszag és a közep-europai pool (Liverpool keresesre)", size = 0.5)
+ggsave("liverpool_közép-eu.png")
+
+
+ggplot(data = filter(data, date >= as.Date("2019-05-01")), aes(x = date)) +
+  geom_line(aes(y = Magyarorszag, color = "Magyarorszag"), size = 1) +
+  geom_line(aes(y = Szlovakia, color = "Szlovakia"), size = 1) +
+  geom_line(aes(y = Ausztria, color = "Ausztria")) +
+  geom_line(aes(y = Romania, color = "Romania")) +
+  geom_line(aes(y = Horvatorszag, color = "Horvatorszag")) +
+  geom_line(aes(y = Csehorszag, color = "Csehorszag")) +
+  geom_line(aes(y = Szlovenia, color = "Szlovenia")) +
+  geom_line(aes(y = Lengyelorszag, color = "Lengyelorszag")) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "red", linetype = "dashed") +
+  labs(title = "Magyarorszag és a közep-europai pool (Liverpool keresesre)", size = 0.5)
+
+ggsave("liverpool_közép-eu_6ev.png")
+
+
+ggplot(data = filter(data, date >= as.Date("2019-05-01")), aes(x = date)) +
+  geom_line(aes(y = Magyarorszag, color = "Magyarorszag"), size = 1) +
+  geom_line(aes(y = Csehorszag, color = "Csehország")) +
+  geom_line(aes(y = Lengyelorszag, color = "Lengyelorszag")) +
+  geom_line(aes(y = Szlovakia, color = "Szlovákia")) +
+    geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "red", linetype = "dashed") +
+  labs(title = "V4-ek (Liverpool keresesre)", size = 0.5)
+ggsave("Liverpool_V4-ek.png")
+
+ggplot(data = filter(data, date >= as.Date("2019-05-01")), aes(x = date)) +
+  geom_line(aes(y = Magyarorszag, color = "Magyarorszag"), size = 1) +
+  geom_line(aes(y = Csehorszag, color = "Csehország")) +
+    geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "red", linetype = "dashed") +
+  labs(title = "Magyarorszag és Csehország (Liverpool keresesre)", size = 0.5)
+ggsave("Liverpool_magyar_cseh.png")
+
+ggplot(data = filter(data, date >= as.Date("2019-05-01")), aes(x = date)) +
+  geom_line(aes(y = Magyarorszag, color = "red"), size = 1) +
+  geom_line(aes(y = Romania, color = "blue")) +
+    geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "red", linetype = "dashed") +
+  labs(title = "Magyarorszag és Románia (Liverpool keresesre)", size = 0.5)
+ggsave("Liverpool_magyar_román.png")
+
+```
+### Van-e spillover hatás?
+### Premier League --> United, City, Arsenal, Chelsea országonként aggregálva
+
+```{r}
+
+ausztria <- read_excel("ausztria_spillover.xlsx")
+cseh <- read_excel("cseh_spillover.xlsx")
+lengyel <- read_excel("lengyel_spillover.xlsx")
+roman <- read_excel("roman_spillover.xlsx")
+szerb <- read_excel("szerb_spillover.xlsx")
+szlovak <- read_excel("szlovak_spillover.xlsx")
+szloven <- read_excel("szloven_spillover.xlsx")
+magyar <- read_excel("magyar_spillover.xlsx")
+
+
+ausztria <- ausztria %>%
+  mutate(City = ifelse(City == "< 1", 0, City))
+
+cseh <- cseh %>%
+  mutate(City = ifelse(City == "< 1", 0, City))
+
+lengyel <- lengyel %>%
+  mutate(City = ifelse(City == "< 1", 0, City))
+
+roman <- roman %>%
+  mutate(City = ifelse(City == "< 1", 0, City))
+
+szerb <- szerb %>%
+  mutate(City = ifelse(City == "< 1", 0, City))
+
+szlovak <- szlovak %>%
+  mutate(City = ifelse(City == "< 1", 0, City))
+
+szloven <- szloven %>%
+  mutate(City = ifelse(City == "< 1", 0, City))
+
+ausztria$date <- as.Date(ausztria$date)
+cseh$date <- as.Date(cseh$date)
+lengyel$date <- as.Date(lengyel$date)
+roman$date <- as.Date(roman$date)
+szerb$date <- as.Date(szerb$date)
+szlovak$date <- as.Date(szlovak$date)
+szloven$date <- as.Date(szloven$date)
+magyar$date <- as.Date(magyar$date)
+
+
+ausztria$City <- as.numeric(ausztria$City)
+lengyel$City <- as.numeric(lengyel$City)
+szlovak$City <- as.numeric(szlovak$City)
+szloven$City <- as.numeric(szloven$City)
+
+
+ausztria <- ausztria %>% 
+  mutate(ausztria = Liverpool + United + City + Chelsea + Arsenal) %>%
+  filter(date >= ("2014-05-01") & 
+         date <= ("2024-04-01")) %>% 
+  select(ausztria, date)
+
+cseh <- cseh %>% 
+  mutate(cseh = Liverpool + United + City + Chelsea + Arsenal) %>%
+  filter(date >= ("2014-05-01") & 
+         date <= ("2024-04-01")) %>% 
+  select(cseh, date)
+
+lengyel <- lengyel %>% 
+  mutate(lengyel = Liverpool + United + City + Chelsea + Arsenal) %>%
+  filter(date >= ("2014-05-01") & 
+         date <= ("2024-04-01")) %>% 
+  select(lengyel, date)
+
+roman <- roman %>% 
+  mutate(roman = Liverpool + United + City + Chelsea + Arsenal) %>%
+  filter(date >= ("2014-05-01") & 
+         date <= ("2024-04-01")) %>% 
+  select(roman, date)
+
+szerb <- szerb %>% 
+  mutate(szerb = Liverpool + United + City + Chelsea + Arsenal) %>%
+  filter(date >= ("2014-05-01") & 
+         date <= ("2024-04-01")) %>% 
+  select(szerb, date)
+
+szlovak <- szlovak %>% 
+  mutate(szlovak = Liverpool + United + City + Chelsea + Arsenal) %>%
+  filter(date >= ("2014-05-01") & 
+         date <= ("2024-04-01")) %>% 
+  select(szlovak, date)
+
+szloven <- szloven %>% 
+  mutate(szloven = Liverpool + United + City + Chelsea + Arsenal) %>%
+  filter(date >= ("2014-05-01") & 
+         date <= ("2024-04-01")) %>% 
+  select(szloven, date)
+
+magyar <- magyar %>% 
+  mutate(magyar = Liverpool + United + City + Chelsea + Arsenal) %>%
+  filter(date >= ("2014-05-01") & 
+         date <= ("2024-04-01")) %>% 
+  select(magyar, date)
+
+premier2 <- merge(ausztria, cseh, by = "date")
+premier3 <- merge(premier2, lengyel, by = "date")
+premier4 <- merge(premier3, roman, by = "date")
+premier5 <- merge(premier4, szerb, by = "date")
+premier6 <- merge(premier5, szlovak, by = "date")
+premier7 <- merge(premier6, magyar, by = "date")
+premier <- merge(premier7, szloven, by = "date")
+
+rm(premier2, premier3, premier4, premier5, premier6, premier7, ausztria, cseh, lengyel, roman, szerb, szlovak, szloven, magyar)
+
+ggplot(premier, aes(x = date)) +
+  geom_line(aes(y = magyar, color = "Magyarorszag"), size = 1) +
+  geom_line(aes(y = szlovak, color = "Szlovakia")) +
+  geom_line(aes(y = ausztria, color = "Ausztria")) +
+  geom_line(aes(y = roman, color = "Romania")) +
+  geom_line(aes(y = cseh, color = "Csehorszag")) +
+  geom_line(aes(y = szloven, color = "Szlovenia")) +
+  geom_line(aes(y = lengyel, color = "Lengyelorszag")) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "red", linetype = "dashed") +
+  labs(title = "Magyarorszag és a közep-europai pool (United, City, Arsenal, Chelsea keresésre)", size = 0.5)
+
+ggplot(premier, aes(x = date)) +
+  geom_line(aes(y = magyar, color = "Magyarorszag"), size = 1) +
+  geom_line(aes(y = szloven, color = "Szlovenia")) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "red", linetype = "dashed") +
+  labs(title = "Magyarorszag és a Szlovénia (United, City, Arsenal, Chelsea keresésre)", size = 0.5)
+
+
+
+ggplot(premier, aes(x = date)) +
+  geom_line(aes(y = magyar, color = "Magyarorszag")) +
+  geom_line(aes(y = roman, color = "Románia")) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "red", linetype = "dashed") +
+  labs(title = "Magyarorszag és Románia (United, City, Arsenal, Chelsea keresésre)") +
+  scale_color_manual(values = c("red", "blue"),
+                     labels = c("Magyarorszag", "Románia"))
+
+```
+
+##### szoboszlai 2023-07-01-jén igazolt át
+
+
+```{r}
+data$t <- 1:nrow(data)
+data$t <- as.numeric(data$t)
+
+# kell egy df, ahol látom majd, hogy melyik "t" melyik időponthoz tartozik
+ido <- data %>% 
+  select(date, t)
+
+# 2019-05-01
+
+data_uj <- data %>% 
+  select(-date)
+
+# hosszú formátumba alakítás (Németországos replikáltban is így van, hiszek neki)
+data_long <- data_uj %>%
+  pivot_longer(cols = -t, names_to = "country", values_to = "search")
+
+# indexek az országokhoz és ezek hozzáadása
+index <- c("Magyarorszag" = 1, "Szlovakia" = 2, "Ausztria" = 3, "Romania" = 4, 
+                   "Horvatorszag" = 5, "Csehorszag" = 6, "Szlovenia" = 7, "Lengyelorszag" = 8)
+
+data_long <- data_long %>%
+  mutate(index = index[country])
+
+data_long <- data_long %>%
+  arrange(index, t)
+
+adat <- data_long
+
+adat$index <- as.numeric(adat$index)
+
+adat <- adat %>%
+  select(index, country, t, search)
+
+write_dta(adat, "adat.dta")
+
+adat <- read_dta("adat.dta")
+
+# nem használatos data frame-eket bezárom
+rm(data, data_long, data_uj)
+```
+
+#### megjegyzések: 
+- azért hoztam létre egy t numerikus változót, mert elméletileg a time.variable-nek numerikusnak kell lennie (nem tudok menni a 2017-07-01 formátumommal)
+- a replikált németországosban kaptak indexet az országok, kapnak nálam is
+- a replikáltban long formátumban van, én is így tettem
+
+```{r}
+adat <- as.data.frame(adat)
+
+adat$index <- as.numeric(adat$index)
+adat$country <- as.character(adat$country)
+adat$t <- as.numeric(adat$t)
+adat$search <- as.numeric(adat$search)
+
+adatprep_out <-
+  dataprep(
+    foo = adat,
+    predictors = c("search"),
+    dependent = "search",
+    unit.variable = "index",
+    time.variable = "t",
+    treatment.identifier = 1,
+    controls.identifier = unique(adat$index)[-1],
+    time.predictors.prior = 185:235,
+    time.optimize.ssr = 185:235,
+    unit.names.variable = "country",
+    time.plot = 185:245
+  )
+
+synthout <- synth(adatprep_out)
+
+# This provides the weights for each candidate comparison unit (solution.w)
+# 0.1256348 0.1249139 0.1239347 0.247149 0.1305232 0.1238025 0.1240419 
+# Szlovakia (12,5%), Ausztria (12,5%), Romania (12,4%), Horvatorszag (24,7%), Csehorszag (13,1%), Szlovenia (12,4%), Lengyelorszag (12,4%)
+# szummázva valóban 100%
+
+```
+
+
+```{r}
+# szintetikus és valódi mozgása (Liverpool)
+path.plot(synth.res = synthout,
+          dataprep.res = adatprep_out,
+          tr.intake = 234,
+          Ylab = "Keresési ráta",
+          Xlab = "Időszak",
+          Legend = c("Magyarország", "Szintetikus Magyarország"),
+          Main = "Magyarország vs. Szintetikus Magyarország")
+
+# különbség
+gaps.plot(synth.res = synthout,
+          dataprep.res = adatprep_out,
+          tr.intake = 234,
+          Ylab = "Y tengely",
+          Xlab = "X tengely",
+          Main = "Cím")
+
+```
+
+#### PL iránti érdeklődés (Arsenal, Chelsea, United, City)
+
+```{r}
+premier$t <- 1:nrow(premier)
+premier$t <- as.numeric(premier$t)
+
+# kell egy df, ahol látom majd, hogy melyik "t" melyik időponthoz tartozik
+ido <- premier %>% 
+  select(date, t)
+
+# 2019-05-01
+
+premier_uj <- premier %>% 
+  select(-date)
+
+# hosszú formátumba alakítás (Németországos replikáltban is így van, hiszek neki)
+premier_long <- premier_uj %>%
+  pivot_longer(cols = -t, names_to = "country", values_to = "search")
+
+# indexek az országokhoz és ezek hozzáadása
+index_pl <- c("magyar" = 1, "szlovak" = 2, "ausztria" = 3, "roman" = 4, 
+                   "horvat" = 5, "cseh" = 6, "szloven" = 7, "lengyel" = 8, "szerb" = 9)
+
+premier_long <- premier_long %>%
+  mutate(index_pl = index_pl[country])
+
+
+premier_long <- premier_long %>%
+  arrange(index_pl, t)
+
+adat_pl <- premier_long
+
+adat_pl$index_pl <- as.numeric(adat_pl$index_pl)
+
+adat_pl <- adat_pl %>%
+  select(index_pl, country, t, search)
+
+write_dta(adat_pl, "adat_pl.dta")
+
+adat_pl <- read_dta("adat_pl.dta")
+
+# nem használatos data frame-eket bezárom
+rm(premier, premier_long, premier_uj)
+```
+
+#### megjegyzések: 
+- azért hoztam létre egy t numerikus változót, mert elméletileg a time.variable-nek numerikusnak kell lennie (nem tudok menni a 2017-07-01 formátumommal)
+- a replikált németországosban kaptak indexet az országok, kapnak nálam is
+- a replikáltban long formátumban van, én is így tettem
+
+```{r}
+adat_pl <- as.data.frame(adat_pl)
+
+adat_pl$index_pl <- as.numeric(adat_pl$index_pl)
+adat_pl$country <- as.character(adat_pl$country)
+adat_pl$t <- as.numeric(adat_pl$t)
+adat_pl$search <- as.numeric(adat_pl$search)
+
+# 2023-07-01 --> 111
+
+adat_plprep_out <-
+  dataprep(
+    foo = adat_pl,
+    predictors = c("search"),
+    dependent = "search",
+    unit.variable = "index_pl",
+    time.variable = "t",
+    treatment.identifier = 1,
+    controls.identifier = unique(adat_pl$index_pl)[-1],
+    time.predictors.prior = 1:111,
+    time.optimize.ssr = 1:111,
+    unit.names.variable = "country",
+    time.plot = 1:120
+  )
+
+synthout_pl <- synth(adat_plprep_out)
+
+# magyar" = 1, "szlovak" = 2, "ausztria" = 3, "roman" = 4, 
+#                   "horvat" = 5, "cseh" = 6, "szloven" = 7, "lengyel" = 8, "szerb" = 9)
+
+# This provides the weights for each candidate comparison unit (solution.w)
+# Szlovakia (3,97%), Ausztria (4,47%), Romania (3,84%), Horvatorszag (3,28%), Csehorszag (8,99%), Szlovenia (5,54%), Lengyelorszag (69,9%)
+# szummázva valóban 100%
+
+```
+
+
+```{r}
+# szintetikus és valódi mozgása (Premier League BIG 4/5)
+path.plot(synth.res = synthout_pl,
+          dataprep.res = adat_plprep_out,
+          tr.intake = 110,
+          Ylab = "Keresési ráta",
+          Xlab = "Időszak",
+          Legend = c("Magyarország PL", "Szintetikus Magyarország PL"),
+          Main = "Magyarország PL vs. Szintetikus Magyarország PL")
+
+# különbség
+gaps.plot(synth.res = synthout_pl,
+          dataprep.res = adat_plprep_out,
+          tr.intake = 110,
+          Ylab = "PL és szintetikus PL közti különbség",
+          Xlab = "Idő",
+          Main = "Premier League-es cím")
+
+```
+
+
+#### Teljesen jó: Ausztria (3) és Szlovénia (7)
+
+#### Feltételesen jó: Csehország (6), Románia (4) és Szlovákia (2)
+
+#### Inkább nem jó: Lengyelország (8)
+
+#### Nem jó: Horvátország és Szerbia
+
+
+#### elsőként csak a teljesen jók (Ausztria és Szlovénia) --> Liverpool becslés
+
+```{r}
+# Ausztria és Szlovénia mint donor pool
+
+teljesenjo <- adat %>% 
+  filter(index %in% c(1, 3, 7)) 
+
+
+teljes <-
+  dataprep(
+    foo = teljesenjo,
+    predictors = c("search"),
+    dependent = "search",
+    unit.variable = "index",
+    time.variable = "t",
+    treatment.identifier = 1,
+    controls.identifier = unique(teljesenjo$index)[-1],
+    time.predictors.prior = 185:235,
+    time.optimize.ssr = 185:235,
+    unit.names.variable = "country",
+    time.plot = 185:245
+  )
+
+teljesout <- synth(teljes)
+
+# solution.w:  0.09837481 0.9016252 
+# --> Ausztria: 9,84% 
+# --> Szlovénia: 90,16%
+
+# szintetikus és valódi mozgása (Liverpool) --> amikor csak Ausztria és Szlovénia a donorpool
+path.plot(synth.res = teljesout,
+          dataprep.res = teljes,
+          tr.intake = 234,
+          Ylab = "Keresési ráta",
+          Xlab = "Időszak",
+          Legend = c("Magyarország", "Szintetikus Magyarország"),
+          Main = "Magyarország vs. Szintetikus Magyarország")
+
+# különbség
+gaps.plot(synth.res = teljesout,
+          dataprep.res = teljes,
+          tr.intake = 234,
+          Ylab = "Y tengely",
+          Xlab = "X tengely",
+          Main = "Cím")
+
+# próbálnám kimenteni a szintetikus Mo-t, de nem megy
+# teljeshez <- data.frame(Y1plot = teljes$Y1plot, Y0plot = teljes$Y0plot)
+# X1 az az eredeti Magyarroszág
+# Y0plot.3 --> Ausztria
+# Y0plot.7 --> Szlovénia
+
+# szóval legenerálom a kapott súlyokkal
+
+# súlyok
+teljessuly <- data.frame(suly = teljesout$solution.w)
+
+teljesabra <- teljesenjo %>% 
+  filter(t >= 185)
+
+teljesabra <- teljesabra %>% 
+  select(-index)
+
+# megfelelő adathalmazt hozok létre az ábrákhoz
+teljesabra <- teljesabra %>%
+  pivot_wider(names_from = country, values_from = search)
+
+# szintetikus Magyarország létrehozása a súlyokból
+teljesabra <- teljesabra %>% 
+  mutate(szintmo = Ausztria * 0.09837481 + Szlovenia * 0.90162519)
+
+# kell az adathalmazba egy dátum változó, ezt hozom létre
+dates <- seq(as.Date("2014-01-01"), as.Date("2024-05-01"), by = "1 month")
+
+time <- data.frame(
+  t = seq(121, 245, by = 1),
+  date = dates)
+
+teljesabra <- left_join(teljesabra, time, by = "t")
+
+teljesabra <- teljesabra %>% 
+  mutate(kulonbseg = Magyarorszag - szintmo) %>% 
+  mutate(arany = Magyarorszag / szintmo)
+
+ggplot(teljesabra, aes(x = date)) +
+  geom_line(aes(y = Magyarorszag, color = "Magyarorszag"), size = 1) +
+  geom_line(aes(y = szintmo, color = "Szintetikus Mo"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  labs(
+    title = "Liverpool keresések (donorpool: Ausztria, Szlovénia)", size = 0.5,
+    y = "Keresési ráta",
+    x = "Idő")
+
+ggplot(teljesabra, aes(x = date)) +
+  geom_line(aes(y = arany, color = "arany"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  geom_hline(yintercept = 1, color = "black", linetype = "dashed", size = 1) +
+  labs(
+    title = "Arány (donorpool: Ausztria, Szlovénia)",
+    y = "Arány",
+    x = "Idő")
+# lehet ezt úgy kellene, hogy csak a treatment után hányszorosára változott az érdeklődés
+
+# átlagosan hányszorosa az érdeklődés a treatment után?
+# treatment időszak: t --> 235-245
+teljesabra_arány_átlag <- mean(teljesabra$arany[teljesabra$t >= 235 & teljesabra$t <= 245], na.rm = TRUE)
+teljesabra_arány_átlag
+
+teljesabra_arány_szórás <- var(teljesabra$arany[teljesabra$t >= 235 & teljesabra$t <= 245], na.rm = TRUE)
+teljesabra_arány_szórás # 0.5702
+
+teljesabra_arány_sd <- sd(teljesabra$arany[teljesabra$t >= 235 & teljesabra$t <= 245], na.rm = TRUE)
+teljesabra_arány_sd # 0.75511 --> ez a szórás
+
+
+```
+
+#### csak a teljesen jók (Ausztria és Szlovénia) --> Big 5/4 becslés
+
+
+```{r}
+teljesenjo_pl <- adat_pl %>% 
+  filter(index_pl %in% c(1, 3, 7)) 
+
+teljes_pl <-
+  dataprep(
+    foo = teljesenjo_pl,
+    predictors = c("search"),
+    dependent = "search",
+    unit.variable = "index_pl",
+    time.variable = "t",
+    treatment.identifier = 1,
+    controls.identifier = unique(teljesenjo_pl$index_pl)[-1],
+    time.predictors.prior = 61:111,
+    time.optimize.ssr = 61:111,
+    unit.names.variable = "country",
+    time.plot = 61:120
+  )
+
+teljes_plout <- synth(teljes_pl)
+
+# solution.w: 5.07016e-05 0.9999493
+# --> Ausztria: 0.0000507016 --> gyakorlatilag 0%
+# --> Szlovénia: 0.9999493 --> 100%
+
+# szintetikus és valódi mozgása (Liverpool) --> amikor csak Ausztria és Szlovénia a donorpool
+path.plot(synth.res = teljes_plout,
+          dataprep.res = teljes_pl,
+          tr.intake = 110,
+          Ylab = "Keresési ráta",
+          Xlab = "Időszak",
+          Legend = c("Magyarország", "Szintetikus Magyarország"),
+          Main = "PL")
+
+# különbség
+gaps.plot(synth.res = teljes_plout,
+          dataprep.res = teljes_pl,
+          tr.intake = 110,
+          Ylab = "Y tengely",
+          Xlab = "X tengely",
+          Main = "Cím")
+
+# szintetikus Magyarországot legenerálom a kapott súlyokkal
+
+teljesabra_pl <- teljesenjo_pl
+
+teljesabra_pl <- teljesabra_pl %>% 
+  select(-index_pl)
+
+# megfelelő adathalmazt hozok létre az ábrákhoz
+teljesabra_pl <- teljesabra_pl %>%
+  pivot_wider(names_from = country, values_from = search)
+
+# szintetikus Magyarország létrehozása a súlyokból
+teljesabra_pl <- teljesabra_pl %>% 
+  mutate(szintmo = ausztria * 0.0000507016 + szloven * 0.9999493)
+
+# kell az adathalmazba egy dátum változó, ezt hozom létre
+dates_pl <- seq(as.Date("2014-05-01"), as.Date("2024-04-01"), by = "1 month")
+
+time_pl <- data.frame(
+  t = seq(1, 120, by = 1),
+  date = dates_pl)
+
+teljesabra_pl <- left_join(teljesabra_pl, time_pl, by = "t")
+
+teljesabra_pl <- teljesabra_pl %>% 
+  mutate(kulonbseg = magyar - szintmo) %>% 
+  mutate(arany = magyar / szintmo)
+
+ggplot(teljesabra_pl, aes(x = date)) +
+  geom_line(aes(y = magyar, color = "Magyarorszag"), size = 1) +
+  geom_line(aes(y = szintmo, color = "Szintetikus Mo"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  labs(
+    title = "Big 5/4 (donorpool: Ausztria, Szlovénia)", size = 0.5,
+    y = "Keresési ráta",
+    x = "Idő")
+
+ggplot(teljesabra_pl, aes(x = date)) +
+  geom_line(aes(y = arany, color = "arany"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  geom_hline(yintercept = 1, color = "black", linetype = "dashed", size = 1) +
+  labs(
+    title = "Arány (donorpool: Ausztria, Szlovénia)",
+    y = "Arány",
+    x = "Idő")
+
+
+szuk_4ev_pl_átlag <- mean(teljesabra_pl$arany[teljesabra_pl$t >= 111 & teljesabra_pl$t <= 120], na.rm = TRUE)
+szuk_4ev_pl_átlag # 1.130405
+
+szuk_4ev_pl_átlag_sd <- sd(teljesabra_pl$arany[teljesabra_pl$t >= 111 & teljesabra_pl$t <= 120], na.rm = TRUE)
+szuk_4ev_pl_átlag_sd # 0.06538138
+
+
+```
+
+
+#### szintetikus Magyarország létrehozása a feltételesen jó országok 
+
+
+```{r}
+# Ausztria, Szlovénia, Csehország, Románia és Szlovákia mint donor pool
+
+feltetelesjo <- adat %>% 
+  filter(index %in% c(1, 2, 3, 4, 6, 7))
+
+
+felteteles <-
+  dataprep(
+    foo = feltetelesjo,
+    predictors = c("search"),
+    dependent = "search",
+    unit.variable = "index",
+    time.variable = "t",
+    treatment.identifier = 1,
+    controls.identifier = unique(feltetelesjo$index)[-1],
+    time.predictors.prior = 185:235,
+    time.optimize.ssr = 185:235,
+    unit.names.variable = "country",
+    time.plot = 185:245
+  )
+
+feltetelesout <- synth(felteteles)
+
+# solution.w:   0.1406465 0.4391404 0.1507414 0.1177304 0.1517413  
+# Szlovákia (2): 0.1406465 --> 14,06%
+# Ausztria (3): 0.4391404 --> 43,91%
+# Románia (4): 0.1507414 --> 15,07%
+# Csehország (6): 0.1177304 --> 11,77%
+# Szlovénia (7): 0.1517413 --> 15,17%
+
+
+# szintetikus és valódi mozgása (Liverpool)
+path.plot(synth.res = feltetelesout,
+          dataprep.res = felteteles,
+          tr.intake = 234,
+          Ylab = "Keresési ráta",
+          Xlab = "Időszak",
+          Legend = c("Magyarország", "Szintetikus Magyarország"),
+          Main = "Magyarország vs. Szintetikus Magyarország")
+
+# különbség
+gaps.plot(synth.res = feltetelesout,
+          dataprep.res = felteteles,
+          tr.intake = 234,
+          Ylab = "Y tengely",
+          Xlab = "X tengely",
+          Main = "Cím")
+
+feltetelesabra <- feltetelesjo %>% 
+  filter(t >= 185)
+
+feltetelesabra <- feltetelesabra %>% 
+  select(-index)
+
+# megfelelő adathalmazt hozok létre az ábrákhoz
+feltetelesabra <- feltetelesabra %>%
+  pivot_wider(names_from = country, values_from = search)
+
+# szintetikus Magyarország létrehozása a súlyokból
+feltetelesabra <- feltetelesabra %>% 
+  mutate(szintmo = Szlovakia * 0.4391404 + Ausztria * 0.1406465 + Romania * 0.1507414 +  Csehorszag * 0.1177304 + Szlovenia * 0.1517413)
+
+feltetelesabra <- left_join(feltetelesabra, time, by = "t")
+
+feltetelesabra <- feltetelesabra %>% 
+  mutate(kulonbseg = Magyarorszag - szintmo) %>% 
+  mutate(arany = Magyarorszag / szintmo)
+
+ggplot(feltetelesabra, aes(x = date)) +
+  geom_line(aes(y = Magyarorszag, color = "Magyarorszag"), size = 1) +
+  geom_line(aes(y = szintmo, color = "Szintetikus Mo"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  labs(
+    title = "Liverpool keresések (donorpool: Szlovákia, Ausztria, Románia, Csehország, Szlovénia)", size = 0.5,
+    y = "Keresési ráta",
+    x = "Idő")
+
+ggplot(feltetelesabra, aes(x = date)) +
+  geom_line(aes(y = arany, color = "arany"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  geom_hline(yintercept = 1, color = "black", linetype = "dashed", size = 1) +
+  labs(
+    title = "Arány (donorpool: Szlovákia, Ausztria, Románia, Csehország, Szlovénia)",
+    y = "Arány",
+    x = "Idő")
+# lehet ezt úgy kellene, hogy csak a treatment után hányszorosára változott az érdeklődés
+
+feltetelesabra_arány_átlag <- mean(feltetelesabra$arany[feltetelesabra$t >= 235 & feltetelesabra$t <= 245], na.rm = TRUE)
+feltetelesabra_arány_átlag # 4.639334
+
+feltetelesabra_arány_sd <- sd(feltetelesabra$arany[feltetelesabra$t >= 235 & feltetelesabra$t <= 245], na.rm = TRUE)
+feltetelesabra_arány_sd # 0.8292685
+
+```
+
+#### A teljesen jók és a feltételesen jók (Szlovákia, Ausztria, Románia, Csehország, Szlovénia) --> Big 5/4 becslés
+#### ebbe belekavarodtam...
+
+```{r}
+feltetelesen_pl <- adat_pl %>% 
+  filter(index_pl %in% c(1, 2, 3, 4, 6, 7)) 
+
+felteteles_pl <-
+  dataprep(
+    foo = feltetelesen_pl,
+    predictors = c("search"),
+    dependent = "search",
+    unit.variable = "index_pl",
+    time.variable = "t",
+    treatment.identifier = 1,
+    controls.identifier = unique(feltetelesen_pl$index_pl)[-1],
+    time.predictors.prior = 61:111,
+    time.optimize.ssr = 61:111,
+    unit.names.variable = "country",
+    time.plot = 61:120)
+
+felteteles_plout <- synth(felteteles_pl)
+
+# solution.w: 5.13274e-05 7.20375e-05 7.33282e-05 3.13228e-05 0.999772
+# Szlovákia (2):  --> 0.0000513274
+# Ausztria (3): --> 0.0000720375
+# Románia (4): --> 0.0000733282
+# Csehország (6): --> 0.0000313228
+# Szlovénia (7): --> 0.999772
+
+# szintetikus Magyarországot legenerálom a kapott súlyokkal
+
+feltetelesabra_pl <- feltetelesen_pl
+
+feltetelesabra_pl <- feltetelesabra_pl %>% 
+  select(-index_pl)
+
+# megfelelő adathalmazt hozok létre az ábrákhoz
+feltetelesabra_pl <- feltetelesabra_pl %>%
+  pivot_wider(names_from = country, values_from = search)
+
+# szintetikus Magyarország létrehozása a súlyokból
+feltetelesabra_pl <- feltetelesabra_pl %>% 
+  mutate(szintmo = szlovak * 0.0000513274 + ausztria * 0.0000720375 + roman * 0.0000733282 + cseh * 0.0000313228 + szloven * 0.999772)
+
+feltetelesabra_pl <- left_join(feltetelesabra_pl, time_pl, by = "t")
+
+feltetelesabra_pl <- feltetelesabra_pl %>% 
+  mutate(kulonbseg = magyar - szintmo) %>% 
+  mutate(arany = magyar / szintmo)
+
+ggplot(feltetelesabra_pl, aes(x = date)) +
+  geom_line(aes(y = magyar, color = "Magyarorszag"), size = 1) +
+  geom_line(aes(y = szintmo, color = "Szintetikus Mo"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  labs(
+    title = "Big 5/4 (donorpool: Szlovákia, Ausztria, Románia, Csehország, Szlovénia)", size = 0.5,
+    y = "Keresési ráta",
+    x = "Idő")
+
+ggplot(feltetelesabra_pl, aes(x = date)) +
+  geom_line(aes(y = arany, color = "arany"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  geom_hline(yintercept = 1, color = "black", linetype = "dashed", size = 1) +
+  labs(
+    title = "Arány (donorpool: Szlovákia, Ausztria, Románia, Csehország, Szlovénia)",
+    y = "Arány",
+    x = "Idő")
+
+# azért itt előtte is volt bőven ennyi ideig felette, 2018 után pedig inkább van folyamatosan felette (felfele ívelő trend Magyarországon)
+
+
+bo_4ev_pl_átlag <- mean(feltetelesabra_pl$arany[feltetelesabra_pl$t >= 111 & feltetelesabra_pl$t <= 120], na.rm = TRUE)
+bo_4ev_pl_átlag # 1.130417
+
+bp_4ev_pl_átlag_sd <- sd(feltetelesabra_pl$arany[feltetelesabra_pl$t >= 111 & feltetelesabra_pl$t <= 120], na.rm = TRUE)
+bp_4ev_pl_átlag_sd # 0.0653806
+```
+
+#### Szlovénia nélkül
+#### donor pool: Ausztria, Csehország, Románia, Szlovákia
+
+
+```{r}
+noszloven_pl <- adat_pl %>% 
+  filter(index_pl %in% c(1, 2, 3, 4, 6)) 
+
+szlovenno_pl <-
+  dataprep(
+    foo = noszloven_pl,
+    predictors = c("search"),
+    dependent = "search",
+    unit.variable = "index_pl",
+    time.variable = "t",
+    treatment.identifier = 1,
+    controls.identifier = unique(noszloven_pl$index_pl)[-1],
+    time.predictors.prior = 61:111,
+    time.optimize.ssr = 61:111,
+    unit.names.variable = "country",
+    time.plot = 61:120
+  )
+
+noszloven_plout <- synth(szlovenno_pl)
+
+# így meg Románia kap 99,99996%-ot
+```
+
+#### nézzünk nagyobb időtávot
+
+```{r}
+pl10ev <- adat_pl %>% 
+  filter(index_pl %in% c(1, 2, 3, 4, 6, 7)) 
+
+pl10ev_list <-
+  dataprep(
+    foo = pl10ev,
+    predictors = c("search"),
+    dependent = "search",
+    unit.variable = "index_pl",
+    time.variable = "t",
+    treatment.identifier = 1,
+    controls.identifier = unique(pl10ev$index_pl)[-1],
+    time.predictors.prior = 1:111,
+    time.optimize.ssr = 1:111,
+    unit.names.variable = "country",
+    time.plot = 61:120)
+
+pl10ev <- pl10ev %>% 
+  filter(index_pl %in% c(1, 2, 3, 4, 6, 7))
+
+pl10evout <- synth(pl10ev_list)
+# Szlovénia így is 91%-ot kapott
+
+# súlyok:  0.02229936 0.02776295 0.02095893 0.0160734 0.9129054 
+# Szlovákia (2):  --> 0.02229936 --> 2,22%
+# Ausztria (3): --> 0.02776295 --> 2,776295%
+# Románia (4): --> 0.02095893 --> 2,095893%
+# Csehország (6): --> 0.0160734 --> 1,60734%
+# Szlovénia (7): --> 0.9129054--> 91,29054%
+
+
+pl10evabra <- pl10ev
+
+pl10evabra <- pl10evabra %>% 
+  select(-index_pl)
+
+# megfelelő adathalmazt hozok létre az ábrákhoz
+pl10evabra <- pl10evabra %>%
+  pivot_wider(names_from = country, values_from = search)
+
+# szintetikus Magyarország létrehozása a súlyokból
+pl10evabra <- pl10evabra %>% 
+  mutate(szintmo = szlovak * 0.02229936 + ausztria * 0.02776295 + roman * 0.02095893 + cseh * 0.0160734 + szloven * 0.9129054)
+
+pl10evabra <- left_join(pl10evabra, time_pl, by = "t")
+
+pl10evabra <- pl10evabra %>% 
+  mutate(kulonbseg = magyar - szintmo) %>% 
+  mutate(arany = magyar / szintmo)
+
+ggplot(pl10evabra, aes(x = date)) +
+  geom_line(aes(y = magyar, color = "Magyarorszag"), size = 1) +
+  geom_line(aes(y = szintmo, color = "Szintetikus Mo"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  labs(
+    title = "Big 5/4 (donorpool: Szlovákia, Ausztria, Románia, Csehország, Szlovénia), 10 év", size = 0.5,
+    y = "Keresési ráta",
+    x = "Idő")
+
+ggplot(pl10evabra, aes(x = date)) +
+  geom_line(aes(y = arany, color = "arany"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  geom_hline(yintercept = 1, color = "black", linetype = "dashed", size = 1) +
+  labs(
+    title = "Arány (donorpool: Szlovákia, Ausztria, Románia, Csehország, Szlovénia), 10 év",
+    y = "Arány",
+    x = "Idő")
+
+```
+
+
+# Ausztria, Szlovénia, Csehország, Románia és Szlovákia mint donor pool
+# 9 év a treatment előtt
+
+```{r}
+ev10 <- adat %>% 
+  filter(index %in% c(1, 2, 3, 4, 6, 7))
+
+ev10_list <-
+  dataprep(
+    foo = ev10,
+    predictors = c("search"),
+    dependent = "search",
+    unit.variable = "index",
+    time.variable = "t",
+    treatment.identifier = 1,
+    controls.identifier = unique(ev10$index)[-1],
+    time.predictors.prior = 121:235,
+    time.optimize.ssr = 121:235,
+    unit.names.variable = "country",
+    time.plot = 121:245)
+
+ev10out <- synth(ev10_list)
+
+# solution.w:   0.1725794 0.3085124 0.1729111 0.1668429 0.1791542
+# Szlovákia (2):  0.1725794 --> 17,25794%
+# Ausztria (3): 0.3085124 --> 30,85124%
+# Románia (4): 0.1729111 --> 17,29111%
+# Csehország (6): 0.1668429 --> 16,68429%
+# Szlovénia (7): 0.1791542 --> 17,91542%
+
+
+ev10abra <- ev10 %>% 
+  filter(t >= 121)
+
+ev10abra <- ev10abra %>% 
+  select(-index)
+
+# megfelelő adathalmazt hozok létre az ábrákhoz
+ev10abra <- ev10abra %>%
+  pivot_wider(names_from = country, values_from = search)
+
+# szintetikus Magyarország létrehozása a súlyokból
+ev10abra <- ev10abra %>% 
+  mutate(szintmo = Szlovakia * 0.1725794 + Ausztria * 0.3085124 + Romania * 0.1729111 +  Csehorszag * 0.1668429 + Szlovenia * 0.1791542)
+
+ev10abra <- left_join(ev10abra, time, by = "t")
+
+ev10abra <- ev10abra %>% 
+  mutate(kulonbseg = Magyarorszag - szintmo) %>% 
+  mutate(arany = Magyarorszag / szintmo)
+
+ggplot(ev10abra, aes(x = date)) +
+    geom_line(aes(y = Magyarorszag, color = "Magyarorszag"), size = 1) +
+    geom_line(aes(y = szintmo, color = "Szintetikus \nMagyarország"), size = 1) +
+    geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+    labs(
+      title = "Magyarország vs. szintetikus Magyarország Liverpool keresésekre \nDonor pool: Ausztria, Csehország, Románia, Szlovákia, Szlovénia \nIdőtáv: átigazolás előtt 9 év",
+      y = "Keresési ráta",
+      x = "Dátum",
+      color = "Idősorok") +
+    theme(
+      plot.title = element_text(size = 12)
+    )
+
+ggplot(ev10abra, aes(x = date)) +
+  geom_line(aes(y = arany), size = 1, color = "blue") +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  geom_hline(yintercept = 1, color = "black", linetype = "dashed", size = 1) +
+  labs(
+    title = "Magyarország és szintetikus Magyarország aránya<br><span style='font-size:10pt'>(Hányszorosa a Magyarország a szintetikus Magyarországnak)</span>",
+    y = "Arány",
+    x = "Dátum"
+  ) +
+  scale_y_continuous(
+    breaks = c(1, 2, 3, 4, 5, 6)
+  ) +
+  theme(
+    plot.title = element_markdown(size = 14)
+  )
+
+
+orszag5ev9_átlag <- mean(ev10abra$arany[ev10abra$t >= 235 & ev10abra$t <= 245], na.rm = TRUE)
+orszag5ev9_átlag # 4.70
+
+orszag5ev9_sd <- sd(ev10abra$arany[ev10abra$t >= 235 & ev10abra$t <= 245], na.rm = TRUE)
+orszag5ev9_sd # 0.8651891
+```
+
+
+### 7 év treatment előtt időszak, donor pool: Szlovákia, Ausztria, Románia, Csehország, Szlovénia
+
+```{r}
+ev7 <- adat %>% 
+  filter(index %in% c(1, 2, 3, 4, 6, 7))
+
+ev7_list <-
+  dataprep(
+    foo = ev7,
+    predictors = c("search"),
+    dependent = "search",
+    unit.variable = "index",
+    time.variable = "t",
+    treatment.identifier = 1,
+    controls.identifier = unique(ev7$index)[-1],
+    time.predictors.prior = 145:235,
+    time.optimize.ssr = 145:235,
+    unit.names.variable = "country",
+    time.plot = 145:245)
+
+ev7out <- synth(ev7_list)
+
+# solution.w: 0.1705903 0.316219 0.1728589 0.1635265 0.1768054 
+# Szlovákia (2):  0.1705903 --> 17,06%
+# Ausztria (3): 0.316219 --> 31,62%
+# Románia (4): 0.1728589 --> 17,29%
+# Csehország (6): 0.1635265 --> 16,35%
+# Szlovénia (7): 0.1768054 --> 17,68%
+
+
+ev7abra <- ev7 %>% 
+  filter(t >= 145)
+
+ev7abra <- ev7abra %>% 
+  select(-index)
+
+# megfelelő adathalmazt hozok létre az ábrákhoz
+ev7abra <- ev7abra %>%
+  pivot_wider(names_from = country, values_from = search)
+
+# szintetikus Magyarország létrehozása a súlyokból
+ev7abra <- ev7abra %>% 
+  mutate(szintmo = Szlovakia * 0.1705903 + Ausztria * 0.316219 + Romania * 0.1728589 +  Csehorszag * 0.1635265 + Szlovenia * 0.1768054)
+
+ev7abra <- left_join(ev7abra, time, by = "t")
+
+ev7abra <- ev7abra %>% 
+  mutate(kulonbseg = Magyarorszag - szintmo) %>% 
+  mutate(arany = Magyarorszag / szintmo)
+
+ggplot(ev7abra, aes(x = date)) +
+  geom_line(aes(y = Magyarorszag, color = "Magyarorszag"), size = 1) +
+  geom_line(aes(y = szintmo, color = "Szintetikus Mo"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  labs(
+    title = "Liverpool keresések (donorpool: Szlovákia, Ausztria, Románia, Csehország, Szlovénia)", size = 0.5,
+    y = "Keresési ráta",
+    x = "Idő")
+
+ggplot(ev7abra, aes(x = date)) +
+  geom_line(aes(y = arany, color = "arany"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  geom_hline(yintercept = 1, color = "black", linetype = "dashed", size = 1) +
+  labs(
+    title = "Arány (donorpool: Szlovákia, Ausztria, Románia, Csehország, Szlovénia)",
+    y = "Arány",
+    x = "Idő")
+# lehet ezt úgy kellene, hogy csak a treatment után hányszorosára változott az érdeklődés
+
+
+orszag5ev7_átlag <- mean(ev7abra$arany[ev7abra$t >= 235 & ev7abra$t <= 245], na.rm = TRUE)
+orszag5ev7_átlag # 4.690854
+
+orszag5ev7_sd <- sd(ev7abra$arany[ev7abra$t >= 235 & ev7abra$t <= 245], na.rm = TRUE)
+orszag5ev7_sd # 0.8600818
+
+```
+
+### 7 év treatment előtt időszak, szűk donor pool: Ausztria, Szlovénia
+
+
+```{r}
+ev7_szuk <- adat %>% 
+  filter(index %in% c(1, 3, 7))
+
+ev7_szuk_list <-
+  dataprep(
+    foo = ev7_szuk,
+    predictors = c("search"),
+    dependent = "search",
+    unit.variable = "index",
+    time.variable = "t",
+    treatment.identifier = 1,
+    controls.identifier = unique(ev7_szuk$index)[-1],
+    time.predictors.prior = 145:235,
+    time.optimize.ssr = 145:235,
+    unit.names.variable = "country",
+    time.plot = 145:245)
+
+ev7_szukout <- synth(ev7_szuk_list)
+
+# solution.w:  0.0001143817 0.9998856
+# Ausztria (3): 0.0001143817 --> 0,01%
+# Szlovénia (7): 0.9998856 --> 99,99%
+
+
+ev7_szukabra <- ev7_szuk %>% 
+  filter(t >= 145)
+
+ev7_szukabra <- ev7_szukabra %>% 
+  select(-index)
+
+# megfelelő adathalmazt hozok létre az ábrákhoz
+ev7_szukabra <- ev7_szukabra %>%
+  pivot_wider(names_from = country, values_from = search)
+
+# szintetikus Magyarország létrehozása a súlyokból
+ev7_szukabra <- ev7_szukabra %>% 
+  mutate(szintmo = Ausztria * 0.0001143817 + Szlovenia * 0.9998856)
+
+ev7_szukabra <- left_join(ev7_szukabra, time, by = "t")
+
+ev7_szukabra <- ev7_szukabra %>% 
+  mutate(kulonbseg = Magyarorszag - szintmo) %>% 
+  mutate(arany = Magyarorszag / szintmo)
+
+ggplot(ev7_szukabra, aes(x = date)) +
+  geom_line(aes(y = Magyarorszag, color = "Magyarorszag"), size = 1) +
+  geom_line(aes(y = szintmo, color = "Szintetikus Mo"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  labs(
+    title = "Liverpool keresések (donorpool: Szlovákia, Ausztria, Románia, Csehország, Szlovénia)", size = 0.5,
+    y = "Keresési ráta",
+    x = "Idő")
+
+ggplot(ev7_szukabra, aes(x = date)) +
+  geom_line(aes(y = arany, color = "arany"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  geom_hline(yintercept = 1, color = "black", linetype = "dashed", size = 1) +
+  labs(
+    title = "Arány (donorpool: Szlovákia, Ausztria, Románia, Csehország, Szlovénia)",
+    y = "Arány",
+    x = "Idő")
+# lehet ezt úgy kellene, hogy csak a treatment után hányszorosára változott az érdeklődés
+
+
+orszag5ev7_szuk_átlag <- mean(ev7_szukabra$arany[ev7_szukabra$t >= 235 & ev7_szukabra$t <= 245], na.rm = TRUE)
+orszag5ev7_szuk_átlag # 5.255234
+
+orszag5ev7_szuk_sd <- sd(ev7_szukabra$arany[ev7_szukabra$t >= 235 & ev7_szukabra$t <= 245], na.rm = TRUE)
+orszag5ev7_szuk_sd # 0.8272433
+
+```
+### 9 év treatment előtt időszak, szűk donor pool: Ausztria, Szlovénia
+
+
+```{r}
+ev9_szuk <- adat %>% 
+  filter(index %in% c(1, 3, 7))
+
+ev9_szuk_list <-
+  dataprep(
+    foo = ev9_szuk,
+    predictors = c("search"),
+    dependent = "search",
+    unit.variable = "index",
+    time.variable = "t",
+    treatment.identifier = 1,
+    controls.identifier = unique(ev9_szuk$index)[-1],
+    time.predictors.prior = 121:235,
+    time.optimize.ssr = 121:235,
+    unit.names.variable = "country",
+    time.plot = 121:245)
+
+ev9_szukout <- synth(ev9_szuk_list)
+
+# solution.w: 1.47716e-05 0.9999852
+# Ausztria (3): 1.47716e-05 --> 0%
+# Szlovénia (7): 0.9999852 --> 100%
+
+
+ev9_szukabra <- ev9_szuk %>% 
+  filter(t >= 121)
+
+ev9_szukabra <- ev9_szukabra %>% 
+  select(-index)
+
+# megfelelő adathalmazt hozok létre az ábrákhoz
+ev9_szukabra <- ev9_szukabra %>%
+  pivot_wider(names_from = country, values_from = search)
+
+# szintetikus Magyarország létrehozása a súlyokból
+ev9_szukabra <- ev9_szukabra %>% 
+  mutate(szintmo = Szlovenia * 1)
+
+ev9_szukabra <- left_join(ev9_szukabra, time, by = "t")
+
+ev9_szukabra <- ev9_szukabra %>% 
+  mutate(kulonbseg = Magyarorszag - szintmo) %>% 
+  mutate(arany = Magyarorszag / szintmo)
+
+ggplot(ev9_szukabra, aes(x = date)) +
+  geom_line(aes(y = Magyarorszag, color = "Magyarorszag"), size = 1) +
+  geom_line(aes(y = szintmo, color = "Szintetikus Mo"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  labs(
+    title = "Liverpool keresések (donorpool: Ausztria, Szlovénia)", size = 0.5,
+    y = "Keresési ráta",
+    x = "Idő")
+
+ggplot(ev9_szukabra, aes(x = date)) +
+  geom_line(aes(y = arany, color = "arany"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  geom_hline(yintercept = 1, color = "black", linetype = "dashed", size = 1) +
+  labs(
+    title = "Arány (donorpool: Ausztria, Szlovénia)",
+    y = "Arány",
+    x = "Idő")
+# lehet ezt úgy kellene, hogy csak a treatment után hányszorosára változott az érdeklődés
+
+
+orszag5ev9_szuk_átlag <- mean(ev9_szukabra$arany[ev9_szukabra$t >= 235 & ev9_szukabra$t <= 245], na.rm = TRUE)
+orszag5ev9_szuk_átlag # 5.255447
+
+orszag5ev9_szuk_sd <- sd(ev9_szukabra$arany[ev9_szukabra$t >= 235 & ev9_szukabra$t <= 245], na.rm = TRUE)
+orszag5ev9_szuk_sd # 0.8273538
+
+```
+
+# csak összehasonlítás céljából
+
+```{r}
+path.plot(synth.res = ev9_szukout,
+          dataprep.res = ev9_szuk_list,
+          tr.intake = 234,
+          Ylab = "Y tengely",
+          Xlab = "X tengely",
+          Legend = c("Magyarország", "Szintetikus Magyarország"),
+          Main = "Cím")
+
+ggplot(ev9_szukabra, aes(x = date)) +
+  geom_line(aes(y = Magyarorszag, color = "Magyarorszag"), size = 1) +
+  geom_line(aes(y = szintmo, color = "Szintetikus Mo"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  labs(
+    title = "Liverpool keresések (donorpool: Ausztria, Szlovénia)", size = 0.5,
+    y = "Keresési ráta",
+    x = "Idő")
+
+
+```
+
+#### Big5/4 donor pool: Szlovákia, Ausztria, Románia, Csehország, Szlovénia; időtáv treatment előtt: 9 év
+
+```{r}
+ev9_bo_pl <- adat_pl %>% 
+  filter(index_pl %in% c(1, 2, 3, 4, 6, 7)) 
+
+ev9_bo_pl_list <-
+  dataprep(
+    foo = ev9_bo_pl,
+    predictors = c("search"),
+    dependent = "search",
+    unit.variable = "index_pl",
+    time.variable = "t",
+    treatment.identifier = 1,
+    controls.identifier = unique(ev9_bo_pl$index_pl)[-1],
+    time.predictors.prior = 1:110,
+    time.optimize.ssr = 1:110,
+    unit.names.variable = "country",
+    time.plot = 1:120)
+
+ev9_bo_plout <- synth(ev9_bo_pl_list)
+
+# solution.w: 0.02350228 0.02926584 0.02213133 0.0170102 0.9080903
+# Szlovákia (2):  --> 0.02350228
+# Ausztria (3): --> 0.02926584
+# Románia (4): --> 0.02213133
+# Csehország (6): --> 0.0170102
+# Szlovénia (7): --> 0.9080903
+
+# szintetikus Magyarországot legenerálom a kapott súlyokkal
+
+ev9_bo_abra_pl <- ev9_bo_pl
+
+ev9_bo_abra_pl <- ev9_bo_abra_pl %>% 
+  select(-index_pl)
+
+# megfelelő adathalmazt hozok létre az ábrákhoz
+ev9_bo_abra_pl <- ev9_bo_abra_pl %>%
+  pivot_wider(names_from = country, values_from = search)
+
+# szintetikus Magyarország létrehozása a súlyokból
+ev9_bo_abra_pl <- ev9_bo_abra_pl %>% 
+  mutate(szintmo = szlovak * 0.02350228 + ausztria * 0.02926584 + roman * 0.02213133 + cseh * 0.0170102 + szloven * 0.9080903)
+
+ev9_bo_abra_pl <- left_join(ev9_bo_abra_pl, time_pl, by = "t")
+
+ev9_bo_abra_pl <- ev9_bo_abra_pl %>% 
+  mutate(kulonbseg = magyar - szintmo) %>% 
+  mutate(arany = magyar / szintmo)
+
+
+
+
+ggplot(ev9_bo_abra_pl, aes(x = date)) +
+    geom_line(aes(y = magyar, color = "Magyarorszag"), size = 1) +
+    geom_line(aes(y = szintmo, color = "Szintetikus \nMagyarország"), size = 1) +
+    geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+    labs(
+      title = "Spillover hatás mérése (Magyarország vs. szintetikus Magyarország) \nDonor pool: Ausztria, Csehország, Románia, Szlovákia, Szlovénia \nIdőtáv: átigazolás előtt 9 év",
+      y = "Keresési ráta",
+      x = "Dátum",
+      color = "Idősorok") +
+    theme(
+      plot.title = element_text(size = 12)
+    )
+
+
+
+ggplot(ev9_bo_abra_pl, aes(x = date)) +
+  geom_line(aes(y = arany, color = "arany"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  geom_hline(yintercept = 1, color = "black", linetype = "dashed", size = 1) +
+  labs(
+    title = "Arány (donorpool: Szlovákia, Ausztria, Románia, Csehország, Szlovénia)",
+    y = "Arány",
+    x = "Idő")
+
+
+ggplot(ev9_bo_abra_pl, aes(x = date)) +
+  geom_line(aes(y = arany), size = 1, color = "blue") +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  geom_hline(yintercept = 1, color = "black", linetype = "dashed", size = 1) +
+  labs(
+    title = "Spillover hatás: Magyarország és szintetikus Magyarország aránya <br><span style='font-size:10pt'>(Hányszorosa Magyarország a szintetikus Magyarországnak)</span>",
+    y = "Arány",
+    x = "Dátum"
+  ) +
+  scale_y_continuous(
+    breaks = c(0.75, 1, 1.25, 1.5)
+  ) +
+  theme(
+    plot.title = element_markdown(size = 14)
+  )
+
+
+
+
+
+
+
+
+bo_9ev_pl_átlag <- mean(ev9_bo_abra_pl$arany[ev9_bo_abra_pl$t >= 111 & ev9_bo_abra_pl$t <= 120], na.rm = TRUE)
+bo_9ev_pl_átlag # 1.137083
+
+bo_9ev_pl_átlag_sd <- sd(ev9_bo_abra_pl$arany[ev9_bo_abra_pl$t >= 111 & ev9_bo_abra_pl$t <= 120], na.rm = TRUE)
+bo_9ev_pl_átlag_sd # 0.06537445
+
+
+```
+
+
+#### Big5/4 donor pool: Ausztria, Szlovénia; időtáv treatment előtt: 9 év
+
+
+
+```{r}
+ev9_szuk_pl <- adat_pl %>% 
+  filter(index_pl %in% c(1, 3, 7)) 
+
+ev9_szuk_pl_list <-
+  dataprep(
+    foo = ev9_szuk_pl,
+    predictors = c("search"),
+    dependent = "search",
+    unit.variable = "index_pl",
+    time.variable = "t",
+    treatment.identifier = 1,
+    controls.identifier = unique(ev9_szuk_pl$index_pl)[-1],
+    time.predictors.prior = 1:110,
+    time.optimize.ssr = 1:110,
+    unit.names.variable = "country",
+    time.plot = 1:120)
+
+ev9_szuk_plout <- synth(ev9_szuk_pl_list)
+
+# solution.w: 0.1318868 0.8681132
+# Ausztria (3): --> 0.1318868
+# Szlovénia (7): --> 0.8681132
+
+# nem értem hogyan jöhet ki kisebb súly Szlovéniára így, mint amikor 5 ország van a donor poolban...
+
+# szintetikus Magyarországot legenerálom a kapott súlyokkal
+
+ev9_szuk_abra_pl <- ev9_szuk_pl
+
+ev9_szuk_abra_pl <- ev9_szuk_abra_pl %>% 
+  select(-index_pl)
+
+# megfelelő adathalmazt hozok létre az ábrákhoz
+ev9_szuk_abra_pl <- ev9_szuk_abra_pl %>%
+  pivot_wider(names_from = country, values_from = search)
+
+# szintetikus Magyarország létrehozása a súlyokból
+ev9_szuk_abra_pl <- ev9_szuk_abra_pl %>% 
+  mutate(szintmo = ausztria * 0.1318868 + szloven * 0.8681132)
+
+ev9_szuk_abra_pl <- left_join(ev9_szuk_abra_pl, time_pl, by = "t")
+
+ev9_szuk_abra_pl <- ev9_szuk_abra_pl %>% 
+  mutate(kulonbseg = magyar - szintmo) %>% 
+  mutate(arany = magyar / szintmo)
+
+ggplot(ev9_szuk_abra_pl, aes(x = date)) +
+  geom_line(aes(y = magyar, color = "Magyarorszag"), size = 1) +
+  geom_line(aes(y = szintmo, color = "Szintetikus Mo"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  labs(
+    title = "Big 5/4 (donorpool: Ausztria, Szlovénia), 9 év", size = 0.5,
+    y = "Keresési ráta",
+    x = "Idő")
+
+ggplot(ev9_szuk_abra_pl, aes(x = date)) +
+  geom_line(aes(y = arany, color = "arany"), size = 1) +
+  geom_vline(xintercept = as.numeric(as.Date("2023-07-01")), color = "black", linetype = "dashed") +
+  geom_hline(yintercept = 1, color = "black", linetype = "dashed", size = 1) +
+  labs(
+    title = "Arány (donorpool: Ausztria, Szlovénia)",
+    y = "Arány",
+    x = "Idő")
+
+szuk_9ev_pl_átlag <- mean(ev9_szuk_abra_pl$arany[ev9_szuk_abra_pl$t >= 111 & ev9_szuk_abra_pl$t <= 120], na.rm = TRUE)
+szuk_9ev_pl_átlag # 1.138521
+
+szuk_9ev_pl_átlag_sd <- sd(ev9_szuk_abra_pl$arany[ev9_szuk_abra_pl$t >= 111 & ev9_szuk_abra_pl$t <= 120], na.rm = TRUE)
+szuk_9ev_pl_átlag_sd # 0.06606506
+
+```
